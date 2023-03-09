@@ -1,16 +1,19 @@
 package com.example.canvasrecorderwithffmpeg
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
-import android.hardware.Camera
+import android.media.MediaFormat
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.widget.Button
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -23,7 +26,7 @@ private const val LOG_TAG = "AudioRecordTest"
 private const val REQUEST_RECORD_AUDIO_PERMISSION = 200
 
 class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
-    private var camera: Camera? = null
+//    private var camera: Camera? = null
     private var surfaceView: SurfaceView? = null
     private var surfaceHolder: SurfaceHolder? = null
     private var mediaPlayer: MediaPlayer? = null
@@ -32,19 +35,36 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var mediaRecorder: MediaRecorder? = null
     private var permissionToRecordAccepted = false
     private val PERMISSIONS_REQUEST_CAMERA = 123
+//    private var mediaCodec: MediaCodec? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         buttonStartRecording = findViewById(R.id.start_recording)
-        buttonStopRecording = findViewById(R.id.stop_recording)
-        buttonStopRecording?.setEnabled(false)
+        buttonStartRecording?.isEnabled = false
 
+        buttonStopRecording = findViewById(R.id.stop_recording)
+        buttonStopRecording?.isEnabled = false
+
+//        mediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_MPEG4)
         surfaceView = findViewById(R.id.surface_view)
         surfaceHolder = surfaceView?.holder
         surfaceHolder?.addCallback(this)
+    }
 
+    @RequiresApi(Build.VERSION_CODES.S)
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        val videoUri = Uri.parse("https://kenangan.s3-ap-southeast-1.amazonaws.com/content-cache/video/43531af3-4e31-42dd-b40c-0e18901e892b.mp4")
+
+        mediaPlayer = MediaPlayer()
+        mediaPlayer?.setDisplay(holder)
+        mediaPlayer?.setDataSource(this, videoUri)
+        mediaPlayer?.prepareAsync()
+        mediaPlayer?.setOnPreparedListener {
+            println("video is prepared...")
+            buttonStartRecording?.isEnabled = true
+        }
 
         buttonStartRecording?.setOnClickListener {
             if (
@@ -53,27 +73,49 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
             ) {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA), 1)
             } else {
-                onStartRecording()
-                mediaPlayer?.setOnCompletionListener {
-                    onStopRecording()
+                println("start recording...")
+                val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
+
+                mediaPlayer?.start()
+
+                mediaRecorder = MediaRecorder()
+                mediaRecorder?.apply {
+                    setVideoSource(MediaRecorder.VideoSource.SURFACE)
+                    setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                    setOutputFile("${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)}/recording_${timeStamp}.mp4")
+                    setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+                    setVideoEncodingBitRate(10000000)
+                    setVideoFrameRate(30)
+                    setVideoSize(640, 480)
+//                    setInputSurface(holder.surface)
+                    setOnErrorListener { mr, what, extra ->
+                        println("media recorder is error...")
+                        println(mr)
+                        println(what)
+                        println(extra)
+                    }
+                    setOnInfoListener { mr, what, extra ->
+                        println("info for media recorder...")
+                        println(mr)
+                        println(what)
+                        println(extra)
+                    }
+                    setPreviewDisplay(surfaceView?.holder?.surface)
+                    prepare()
+                    start()
                 }
+
+                buttonStopRecording?.setEnabled(true)
+                buttonStartRecording?.setEnabled(false)
             }
         }
 
         buttonStopRecording?.setOnClickListener() {
             onStopRecording()
         }
-    }
 
-    override fun surfaceCreated(holder: SurfaceHolder) {
-        mediaPlayer = MediaPlayer()
-        mediaPlayer?.setDisplay(surfaceHolder)
-
-        val videoUri = Uri.parse("https://kenangan.s3-ap-southeast-1.amazonaws.com/content-cache/video/43531af3-4e31-42dd-b40c-0e18901e892b.mp4")
-        mediaPlayer?.setDataSource(this, videoUri)
-        mediaPlayer?.prepareAsync()
-        mediaPlayer?.setOnPreparedListener {
-            println("preparing video....")
+        mediaPlayer?.setOnCompletionListener {
+            onStopRecording()
         }
     }
 
@@ -95,6 +137,7 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private fun onStopRecording() {
         println("stop recording...")
+
         try {
             mediaRecorder?.apply {
                 stop()
@@ -109,28 +152,33 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
-    private fun onStartRecording() {
+    private fun onStartRecording(holder: SurfaceHolder) {
         println("start recording...")
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
 
-        mediaPlayer?.start()
-
-        mediaRecorder = MediaRecorder()
         mediaRecorder?.apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
-            setOutputFile("${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)}/recording_${timeStamp}.3gp")
-            setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+            setVideoSource(MediaRecorder.VideoSource.SURFACE)
+            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            setOutputFile("${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)}/recording_${timeStamp}.mp4")
+            setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+            setVideoEncodingBitRate(10000000)
+            setVideoSize(surfaceView!!.width, surfaceView!!.height)
+            setVideoFrameRate(30)
+//            setInputSurface(holder.surface)
+            prepare()
+            setOnErrorListener { mr, what, extra ->
+                println("media recorder is error...")
+                println(mr)
+                println(what)
+                println(extra)
+            }
+            setOnInfoListener { mr, what, extra ->
+                println("info for media recorder...")
+                println(mr)
+                println(what)
+                println(extra)
+            }
         }
-        try {
-            mediaRecorder?.prepare()
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
-
-        mediaRecorder?.start()
-        buttonStopRecording?.setEnabled(true)
-        buttonStartRecording?.setEnabled(false)
     }
 
     private fun getOutputMediaFile(): File? {
