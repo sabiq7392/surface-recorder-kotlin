@@ -56,6 +56,11 @@ class ForegroundService : Service() {
 		return null
 	}
 
+	override fun onDestroy() {
+		super.onDestroy()
+		stopForeground(STOP_FOREGROUND_DETACH)
+	}
+
 	private fun createNotificationChannel() {
 		println("create notification channel")
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
