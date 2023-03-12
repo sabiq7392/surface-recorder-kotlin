@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Canvas Recorder with FFMPEG</string>
+    <string name="label_permissions">SCREEN_RECORDD</string>
 </resources>
