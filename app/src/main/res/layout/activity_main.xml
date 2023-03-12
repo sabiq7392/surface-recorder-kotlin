@@ -7,7 +7,12 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity"
     >
-
+    <SurfaceView
+        android:id="@+id/surface_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        tools:layout_editor_absoluteX="0dp"
+        tools:layout_editor_absoluteY="0dp" />
     <Button
         android:id="@+id/buttonStart"
         android:layout_width="wrap_content"

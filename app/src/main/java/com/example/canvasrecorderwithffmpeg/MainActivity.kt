@@ -1,29 +1,143 @@
 package com.example.canvasrecorderwithffmpeg
 
+import android.content.Context
+import android.content.Intent
+import android.graphics.SurfaceTexture
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
+import android.media.MediaPlayer
+import android.media.MediaRecorder
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
+import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
 
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore.Audio.Media
+import android.view.Surface
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import android.view.View
 import android.widget.Button
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 
-//
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private lateinit var buttonStart: Button
     private lateinit var buttonStop: Button
+    private lateinit var mediaPlayer: MediaPlayer
+    private lateinit var mediaRecorder: MediaRecorder
+    private lateinit var surfaceView: SurfaceView
+    private lateinit var surfaceHolder: SurfaceHolder
+    private lateinit var startMediaProjection:  ActivityResultLauncher<Intent>
+    private lateinit var mediaProjectionManager: MediaProjectionManager
+    private lateinit var mediaProjection: MediaProjection
+    private var virtualDisplay: VirtualDisplay? = null
+    private val videoUri = Uri.parse("https://kenangan.s3-ap-southeast-1.amazonaws.com/content-cache/video/43531af3-4e31-42dd-b40c-0e18901e892b.mp4")
+    private val REQUEST_MEDIA_PROJECTION = 123
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        buttonStart = findViewById(R.id.buttonStart)
         buttonStop = findViewById(R.id.buttonStop)
+        buttonStart = findViewById(R.id.buttonStart)
+        mediaPlayer = MediaPlayer()
+        mediaRecorder = MediaRecorder()
+
+        surfaceView = findViewById(R.id.surface_view)
+        surfaceHolder = surfaceView.holder
+        surfaceHolder?.addCallback(this)
+
+
+        ForegroundService.startService(this, "Foreground Service is running...")
+        mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        startActivityForResult(
+            mediaProjectionManager.createScreenCaptureIntent(),
+            REQUEST_MEDIA_PROJECTION
+        )
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        println("on activity result running...")
+        super.onActivityResult(requestCode, resultCode, data)
+
+        data ?: throw IllegalStateException("Intent cannot be null")
+
+        println("on activity success to produce data...")
+        mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data)
+    }
+
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        mediaPlayer?.setDisplay(holder)
+        mediaPlayer?.setDataSource(this, videoUri)
+        mediaPlayer?.prepareAsync()
 
         buttonStart.setOnClickListener(View.OnClickListener {
-            ForegroundService.startService(this, "Foreground Service is running...")
+            println("button start clicked...")
+            val displayMetrics = resources.displayMetrics
+
+            mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
+            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+            mediaRecorder.setVideoEncodingBitRate(512 * 1000)
+            mediaRecorder.setVideoFrameRate(30)
+            mediaRecorder.setVideoSize(displayMetrics.widthPixels, displayMetrics.heightPixels)
+            mediaRecorder.setOutputFile(getOutputMediaFile())
+//            mediaRecorder.setPreviewDisplay(holder.surface)
+
+            virtualDisplay = mediaProjection.createVirtualDisplay(
+                "MainActivity",
+//                displayMetrics.widthPixels,
+//                displayMetrics.heightPixels,
+                640,
+                480,
+                resources.displayMetrics.densityDpi,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION,
+                holder.surface,
+                null,
+                null
+            )
+
+//            mediaRecorder.prepare()
+//            mediaPlayer.start()
+//            mediaRecorder.start()
         })
-        buttonStop.setOnClickListener(View.OnClickListener {
-            ForegroundService.stopService(this)
-        })
+
+        buttonStop.setOnClickListener() {
+            stopRecording()
+        }
+    }
+//
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        println("surface changed...")
+    }
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        println("surface destroyed...")
+        stopRecording()
+    }
+
+    private fun getOutputMediaFile(): File {
+        // Create a media file name
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
+        val mediaFile = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM),
+            "MEDIA_PROJECTION_${timeStamp}.mp4"
+        )
+        return mediaFile
+    }
+
+    private fun stopRecording() {
+        mediaPlayer.stop()
+        mediaRecorder.stop()
+        mediaRecorder.reset()
+        mediaRecorder.release()
+        mediaProjection.stop()
     }
 }
 
