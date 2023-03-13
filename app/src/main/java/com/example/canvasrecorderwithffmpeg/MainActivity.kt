@@ -45,11 +45,13 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         setContentView(R.layout.activity_main)
 
         buttonStop = findViewById(R.id.buttonStop)
-        buttonStart = findViewById(R.id.buttonStart)
         mediaPlayer = MediaPlayer()
         mediaRecorder = MediaRecorder()
 
-        surfaceView = findViewById(R.id.surface_view)
+				buttonStart = findViewById(R.id.buttonStart)
+//				buttonStart.isEnabled = false
+
+			surfaceView = findViewById(R.id.surface_view)
         surfaceHolder = surfaceView.holder
         surfaceHolder?.addCallback(this)
 
@@ -73,39 +75,45 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        mediaPlayer?.setDisplay(holder)
-        mediaPlayer?.setDataSource(this, videoUri)
-        mediaPlayer?.prepareAsync()
+//        mediaPlayer?.setDisplay(holder)
+//        mediaPlayer?.setDataSource(this, videoUri)
+//        mediaPlayer?.prepareAsync()
+
+//				mediaPlayer.setOnPreparedListener {
+//					println("video is already prepared...")
+//					buttonStart.isEnabled = true
+//				}
 
         buttonStart.setOnClickListener(View.OnClickListener {
             println("button start clicked...")
             val displayMetrics = resources.displayMetrics
+						val width = 640
+						val height = 480
 
             mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
             mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
             mediaRecorder.setVideoEncodingBitRate(512 * 1000)
             mediaRecorder.setVideoFrameRate(30)
-            mediaRecorder.setVideoSize(displayMetrics.widthPixels, displayMetrics.heightPixels)
+            mediaRecorder.setVideoSize(width, height)
             mediaRecorder.setOutputFile(getOutputMediaFile())
-//            mediaRecorder.setPreviewDisplay(holder.surface)
+            mediaRecorder.setPreviewDisplay(holder.surface)
+						mediaRecorder.prepare()
 
             virtualDisplay = mediaProjection.createVirtualDisplay(
                 "MainActivity",
 //                displayMetrics.widthPixels,
 //                displayMetrics.heightPixels,
-                640,
-                480,
+                width,
+                height,
                 resources.displayMetrics.densityDpi,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION,
-                holder.surface,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                mediaRecorder.surface,
                 null,
                 null
             )
 
-//            mediaRecorder.prepare()
-//            mediaPlayer.start()
-//            mediaRecorder.start()
+            mediaRecorder.start()
         })
 
         buttonStop.setOnClickListener() {
@@ -133,11 +141,11 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun stopRecording() {
-        mediaPlayer.stop()
+//        mediaPlayer.stop()
         mediaRecorder.stop()
-        mediaRecorder.reset()
-        mediaRecorder.release()
-        mediaProjection.stop()
+//        mediaRecorder.reset()
+//        mediaRecorder.release()
+//        mediaProjection.stop()
     }
 }
 
